@@ -91,7 +91,7 @@ def index():
                     try:
                         channels = await guild.fetch_channels()
                         for channel in channels:
-                            if isinstance(channel, discord.TextChannel) and "Выдача наказаний" in channel.name:
+                            if isinstance(channel, discord.TextChannel) and "выдача-наказ" in channel.name:
                                 target_channel = channel
                                 break
                     except discord.Forbidden:
@@ -119,7 +119,7 @@ def index():
                         except Exception as e:
                             error = f"Ошибка при загрузке сообщений: {e}"
                     else:
-                        error = "Ошибка: Канал со словом 'учет-наказаний' не найден. Возможно, он скрыт от этого аккаунта."
+                        error = "Ошибка: Канал со словом 'выдача-наказ' не найден. Возможно, он скрыт от этого аккаунта."
             except Exception as e:
                 error = f"Непредвиденная ошибка: {e}"
             finally:
