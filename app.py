@@ -1,9 +1,9 @@
+import os
 from flask import Flask, render_template_string, request
 import discord
 
 app = Flask(__name__)
 
-# HTML-шаблон страницы с темной темой Discord
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ru">
@@ -69,7 +69,6 @@ def index():
       nonlocal messages_data, error
       try:
         target_channel = None
-        # Ищем нужный канал среди всех доступных каналов пользователя
         for guild in client.guilds:
           for channel in guild.text_channels:
             if "учет-наказаний" in channel.name:
@@ -101,7 +100,7 @@ def index():
         await client.close()
 
     try:
-      client.run(token, bot=False)
+      client.run(token)
     except Exception as e:
       error = f"Не удалось авторизоваться: {e}"
 
@@ -109,8 +108,6 @@ def index():
       HTML_TEMPLATE, messages=messages_data, error=error, token=token
   )
 
-
-import os
 
 if __name__ == "__main__":
   port = int(os.environ.get("PORT", 5000))
