@@ -11,7 +11,7 @@ HTML_TEMPLATE = """
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Учет наказаний</title>
+    <title>выдача-наказ</title>
     <style>
         body { background-color: #313338; color: #dbdee1; font-family: sans-serif; padding: 20px; }
         .message-box { background: #2b2d31; padding: 10px 15px; margin-bottom: 10px; border-radius: 8px; max-width: 800px; }
