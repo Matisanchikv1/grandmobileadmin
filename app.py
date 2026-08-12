@@ -15,14 +15,14 @@ HTML_TEMPLATE = """
     <style>
         body { background-color: #313338; color: #dbdee1; font-family: sans-serif; padding: 20px; }
         .message-box { background: #2b2d31; padding: 10px 15px; margin-bottom: 10px; border-radius: 8px; max-width: 800px; }
-        .content { font-size: 15px; margin-bottom: 8px; word-break: break-all; }
+        .content { font-size: 15px; margin-bottom: 8px; word-break: break-word; white-space: pre-wrap; }
         .reactions { display: flex; gap: 6px; flex-wrap: wrap; }
         .reaction { background: #1e1f22; padding: 4px 8px; border-radius: 6px; font-size: 13px; display: flex; align-items: center; gap: 4px; border: 1px solid #35363c; }
         input, button { padding: 10px; font-size: 14px; border-radius: 5px; border: none; margin-right: 5px; }
         input { width: 350px; background: #1e1f22; color: #fff; }
         button { background: #5865f2; color: white; cursor: pointer; }
         button:hover { background: #4752c4; }
-        .error { color: #f23f43; margin-top: 10px; }
+        .error { color: #f23f43; margin-top: 10px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -55,77 +55,87 @@ HTML_TEMPLATE = """
 </html>
 """
 
-
 @app.route("/", methods=["GET", "POST"])
 def index():
-  messages_data = []
-  error = None
-  token = ""
+    messages_data = []
+    error = None
+    token = ""
 
-  if request.method == "POST":
-    token = request.form.get("token")
-    
-    # Настройка интентов для корректной работы самобота
-    intents = discord.Intents.default()
-    intents.guilds = True
-    intents.messages = True
-    intents.message_content = True
-    
-    client = discord.Client(intents=intents)
+    if request.method == "POST":
+        token = request.form.get("token").strip()
+        # На случай, если токен скопировали с кавычками
+        if token.startswith('"') and token.endswith('"'):
+            token = token[1:-1]
+            
+        client = discord.Client()
 
-    @client.event
-    async def on_ready():
-      nonlocal messages_data, error
-      try:
-        # Даем время на полную синхронизацию кэша серверов
-        guild = client.get_guild(TARGET_GUILD_ID)
-        if not guild:
-          try:
-            guild = await client.fetch_guild(TARGET_GUILD_ID)
-          except Exception:
-            guild = None
+        @client.event
+        async def on_ready():
+            nonlocal messages_data, error
+            try:
+                # 1. Получаем сервер
+                guild = client.get_guild(TARGET_GUILD_ID)
+                if not guild:
+                    try:
+                        guild = await client.fetch_guild(TARGET_GUILD_ID)
+                    except discord.Forbidden:
+                        error = "Ошибка: Аккаунт не состоит на этом сервере (или нет доступа)."
+                        return
+                    except Exception as e:
+                        error = f"Не удалось найти сервер: {e}"
+                        return
 
-        if guild:
-          target_channel = None
-          for channel in guild.text_channels:
-            if "учет-наказаний" in channel.name:
-              target_channel = channel
-              break
+                if guild:
+                    target_channel = None
+                    # 2. Напрямую запрашиваем список каналов сервера, чтобы обойти пустой кэш
+                    try:
+                        channels = await guild.fetch_channels()
+                        for channel in channels:
+                            if isinstance(channel, discord.TextChannel) and "учет-наказаний" in channel.name:
+                                target_channel = channel
+                                break
+                    except discord.Forbidden:
+                        error = "Ошибка: У аккаунта нет прав на просмотр списка каналов сервера."
+                        return
+                    except Exception as e:
+                        error = f"Не удалось получить список каналов: {e}"
+                        return
 
-          if target_channel:
-            async for message in target_channel.history(limit=100):
-              reactions_dict = {}
-              for reaction in message.reactions:
-                emoji = (
-                    str(reaction.emoji)
-                    if hasattr(reaction.emoji, "__str__")
-                    else reaction.emoji.name
-                )
-                reactions_dict[emoji] = reaction.count
+                    # 3. Загружаем историю
+                    if target_channel:
+                        try:
+                            async for message in target_channel.history(limit=100):
+                                reactions_dict = {}
+                                for reaction in message.reactions:
+                                    emoji = str(reaction.emoji) if hasattr(reaction.emoji, "__str__") else reaction.emoji.name
+                                    reactions_dict[emoji] = reaction.count
 
-              messages_data.append({
-                  "content": message.content,
-                  "reactions": reactions_dict,
-              })
-          else:
-            error = "Канал с названнием 'учет-наказаний' не найден на этом сервере!"
-        else:
-          error = "Сервер не найден в кэше. Убедись, что токен рабочий и аккаунт зашел на сервер."
-      except Exception as e:
-        error = f"Ошибка доступа: {e}"
-      finally:
-        await client.close()
+                                messages_data.append({
+                                    "content": message.content,
+                                    "reactions": reactions_dict,
+                                })
+                        except discord.Forbidden:
+                            error = "Ошибка: Канал виден, но у аккаунта нет прав читать историю сообщений!"
+                        except Exception as e:
+                            error = f"Ошибка при загрузке сообщений: {e}"
+                    else:
+                        error = "Ошибка: Канал со словом 'учет-наказаний' не найден. Возможно, он скрыт от этого аккаунта."
+            except Exception as e:
+                error = f"Непредвиденная ошибка: {e}"
+            finally:
+                await client.close()
 
-    try:
-      client.run(token)
-    except Exception as e:
-      error = f"Не удалось авторизоваться: {e}"
+        try:
+            client.run(token)
+        except discord.LoginFailure:
+            error = "Ошибка: Неверный токен. Проверь правильность ввода."
+        except Exception as e:
+            error = f"Внутренняя ошибка подключения: {e}"
 
-  return render_template_string(
-      HTML_TEMPLATE, messages=messages_data, error=error, token=token
-  )
-
+    return render_template_string(
+        HTML_TEMPLATE, messages=messages_data, error=error, token=token
+    )
 
 if __name__ == "__main__":
-  port = int(os.environ.get("PORT", 5000))
-  app.run(host="0.0.0.0", port=port)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
