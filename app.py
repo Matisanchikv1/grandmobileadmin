@@ -64,16 +64,26 @@ def index():
 
   if request.method == "POST":
     token = request.form.get("token")
-    client = discord.Client()
+    
+    # Настройка интентов для корректной работы самобота
+    intents = discord.Intents.default()
+    intents.guilds = True
+    intents.messages = True
+    intents.message_content = True
+    
+    client = discord.Client(intents=intents)
 
     @client.event
     async def on_ready():
       nonlocal messages_data, error
       try:
+        # Даем время на полную синхронизацию кэша серверов
         guild = client.get_guild(TARGET_GUILD_ID)
         if not guild:
-          # Попытка подгрузить, если кэш пустой
-          guild = await client.fetch_guild(TARGET_GUILD_ID)
+          try:
+            guild = await client.fetch_guild(TARGET_GUILD_ID)
+          except Exception:
+            guild = None
 
         if guild:
           target_channel = None
@@ -98,11 +108,9 @@ def index():
                   "reactions": reactions_dict,
               })
           else:
-            error = (
-                "Канал с названнием 'учет-наказаний' не найден на этом сервере!"
-            )
+            error = "Канал с названнием 'учет-наказаний' не найден на этом сервере!"
         else:
-          error = "Сервер с указанным ID не найден или аккаунт на него не зашел."
+          error = "Сервер не найден в кэше. Убедись, что токен рабочий и аккаунт зашел на сервер."
       except Exception as e:
         error = f"Ошибка доступа: {e}"
       finally:
