@@ -4,6 +4,8 @@ import discord
 
 app = Flask(__name__)
 
+TARGET_GUILD_ID = 1358768252012073071
+
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ru">
@@ -68,34 +70,41 @@ def index():
     async def on_ready():
       nonlocal messages_data, error
       try:
-        target_channel = None
-        for guild in client.guilds:
+        guild = client.get_guild(TARGET_GUILD_ID)
+        if not guild:
+          # Попытка подгрузить, если кэш пустой
+          guild = await client.fetch_guild(TARGET_GUILD_ID)
+
+        if guild:
+          target_channel = None
           for channel in guild.text_channels:
             if "учет-наказаний" in channel.name:
               target_channel = channel
               break
+
           if target_channel:
-            break
+            async for message in target_channel.history(limit=100):
+              reactions_dict = {}
+              for reaction in message.reactions:
+                emoji = (
+                    str(reaction.emoji)
+                    if hasattr(reaction.emoji, "__str__")
+                    else reaction.emoji.name
+                )
+                reactions_dict[emoji] = reaction.count
 
-        if target_channel:
-          async for message in target_channel.history(limit=100):
-            reactions_dict = {}
-            for reaction in message.reactions:
-              emoji = (
-                  str(reaction.emoji)
-                  if hasattr(reaction.emoji, "__str__")
-                  else reaction.emoji.name
-              )
-              reactions_dict[emoji] = reaction.count
-
-            messages_data.append({
-                "content": message.content,
-                "reactions": reactions_dict,
-            })
+              messages_data.append({
+                  "content": message.content,
+                  "reactions": reactions_dict,
+              })
+          else:
+            error = (
+                "Канал с названнием 'учет-наказаний' не найден на этом сервере!"
+            )
         else:
-          error = "Канал с похожим названием не найден ни на одном сервере!"
+          error = "Сервер с указанным ID не найден или аккаунт на него не зашел."
       except Exception as e:
-        error = f"Ошибка подключения (проверь правильность токена): {e}"
+        error = f"Ошибка доступа: {e}"
       finally:
         await client.close()
 
