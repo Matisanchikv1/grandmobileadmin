@@ -91,7 +91,7 @@ def index():
                     try:
                         channels = await guild.fetch_channels()
                         for channel in channels:
-                            if isinstance(channel, discord.TextChannel) and "учет-наказаний" in channel.name:
+                            if isinstance(channel, discord.TextChannel) and "Выдача наказаний" in channel.name:
                                 target_channel = channel
                                 break
                     except discord.Forbidden:
